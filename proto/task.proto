@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package task;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "./proto";
+
+message Task{
+    string id = 1;
+    string owner_id = 2;
+    string title = 3;
+    Status status = 4;
+    string description = 5;
+    google.protobuf.Timestamp created_at = 6;
+    google.protobuf.Timestamp updated_at = 7;
+}
+
+enum Status {
+    STATUS_PENDING = 0;
+    STATUS_INPROGRESS = 1;
+    STATUS_DONE = 2;
+}
+
+message CreateTaskRequest {
+    string title = 1;
+    string description = 2;
+}
+
+message CreateTaskResponse {
+    Task task = 1;
+}
+
+message DeleteTaskRequest {
+    string id = 1;
+}
+
+message DeleteTaskResponse{
+    bool success = 1;
+}
+
+message GetTaskRequest{
+    string id = 1;
+}
+
+message GetTaskResponse{
+    Task task = 1;
+}
+
+message UpdateTaskRequest{
+    string id = 1;
+    Status status = 2;
+    string title = 3;
+    string description = 4;
+}
+
+message UpdateTaskResponse{
+    Task task = 1;
+}
+
+message ListTaskRequest {
+    int32 page = 1;
+    int32 limit = 2;
+}
+
+message ListTaskResponse {
+    repeated Task tasks = 1;
+}
+
+message RegisterRequest{}
+
+message RegisterResponse{
+    string token = 1;
+}
+
+
+service TaskService {
+    rpc Register(RegisterRequest) returns (RegisterResponse);
+    rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+    rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+    rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+    rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
+    rpc ListTask(ListTaskRequest) returns (ListTaskResponse);
+}

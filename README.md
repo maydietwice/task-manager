@@ -123,7 +123,7 @@ go run ./cmd/bot
 ```
 ### Register()  
 
-Returns your personal `token` that you should save. Used to relate your task to your connection
+Returns your personal `token` that you should save. It links your task to your connection
 
 **Request**  
 `Request structure is not required`

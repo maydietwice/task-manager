@@ -1,16 +1,4 @@
 services:
-  app:
-    depends_on:
-      postgres:
-        condition: service_healthy
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "50051:50051"
-    env_file:
-      - .env
-
   postgres:
     image: postgres:18
     environment:
@@ -25,5 +13,25 @@ services:
     volumes:
       - ./migrations/migrate.sql:/docker-entrypoint-initdb.d/migrate.sql
       - postgres_data:/var/lib/postgresql
+  app:
+      depends_on:
+        postgres:
+          condition: service_healthy
+      build:
+        context: .
+        dockerfile: Dockerfile
+      ports:
+        - "50051:50051"
+      env_file:
+        - .env
+  bot:
+    depends_on: 
+     - app
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    env_file:
+     - .env
+
 volumes:
   postgres_data:

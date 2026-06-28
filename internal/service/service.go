@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/maydietwice/task-manager/internal/db"
 	"github.com/maydietwice/task-manager/internal/task"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Service struct {
@@ -104,7 +106,7 @@ func (s *Service) ListTask(ownerId string, page, limit int) ([]task.Task, error)
 	return s.repo.List(ownerId, page, limit)
 }
 
-func (s *Service) UpdateTask(id, ownerId, title, description string, status task.Status) (task.Task, error) {
+func (s *Service) UpdateTask(id, ownerId, title, description string, statusT task.Status) (task.Task, error) {
 	if id == "" {
 		return task.Task{}, errors.New("id can't be an empty string")
 	}
@@ -115,6 +117,10 @@ func (s *Service) UpdateTask(id, ownerId, title, description string, status task
 		return task.Task{}, err
 	}
 
+	if t == nil {
+		return task.Task{}, status.Error(codes.NotFound, "task not found")
+	}
+
 	if title == "" {
 		title = t.Title
 	}
@@ -123,7 +129,7 @@ func (s *Service) UpdateTask(id, ownerId, title, description string, status task
 		description = t.Description
 	}
 
-	err = s.repo.Update(id, ownerId, title, description, status, time.Now())
+	err = s.repo.Update(id, ownerId, title, description, statusT, time.Now())
 
 	if err != nil {
 		return task.Task{}, err
@@ -131,7 +137,7 @@ func (s *Service) UpdateTask(id, ownerId, title, description string, status task
 
 	t.Title = title
 	t.Description = description
-	t.Status = status
+	t.Status = statusT
 	t.UpdatedAt = time.Now()
 
 	return *t, nil

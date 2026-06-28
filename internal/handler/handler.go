@@ -6,6 +6,8 @@ import (
 	"github.com/maydietwice/task-manager/internal/service"
 	"github.com/maydietwice/task-manager/internal/task"
 	"github.com/maydietwice/task-manager/proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -73,6 +75,10 @@ func (h *Handler) GetTask(ctx context.Context, r *proto.GetTaskRequest) (*proto.
 
 	if err != nil {
 		return nil, err
+	}
+
+	if t == nil {
+		return nil, status.Error(codes.NotFound, "task not found")
 	}
 
 	return &proto.GetTaskResponse{Task: taskToProto(*t)}, nil

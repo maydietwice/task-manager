@@ -180,6 +180,10 @@ func (r *Repository) Get(id, ownerId string) (*task.Task, error) {
 		&t.UpdatedAt,
 	)
 
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
 	return &t, err
 }
 

@@ -9,6 +9,7 @@ Microservice for managing your tasks via gRPC api
 - **Database:** PostgreSQL v18
 - **Security auth:** [JWT Tokens](https://github.com/golang-jwt/jwt)
 - **Infrastructure:** Docker & Docker Compose
+- **Client-side** [Telegram bot API](https://github.com/go-telegram-bot-api/telegram-bot-api)
 
 ## Configuration
 
@@ -26,6 +27,23 @@ Create .env configuration (see `env.example`):
 | DB_MAX_IDLE_CONNS | Maximum number of idle connections in pool | 5 |
 | DB_CONN_MAX_IDLE_TIME | Maximum time for keeping alive and idle connection | 15m |
 | DB_CONN_MAX_LIFETIME | Maximum time for keeping alive an active connection | 1h |
+| TELEGRAM_BOT_TOKEN | @BotFather telegram bot token | telegram-bot-token |
+| GRPC_SERVER_ADDRESS | Address for your client to send requests | app:50051
+
+## Running options
+
+**Full stack (with bot):**
+```bash
+docker compose up --build
+```
+
+**Without bot (server + database only):**
+```bash
+docker compose up --build app postgres
+```
+
+**Note:** Telegram bot requires internet access to Telegram API. 
+In some regions you may need a VPN or proxy.
 
 ## Quick start
 
@@ -56,6 +74,30 @@ docker compose down
 ```bash
 docker compose logs -f
 ```  
+
+## Telegram bot API
+
+**You can manage your tasks via Telegram bot**
+
+### Setup
+- Create bot via [@BotFather](https://t.me/BotFather)
+- Add `TELEGRAM_BOT_TOKEN` in .env from @BotFather
+- Run bot using either Docker Compose or cmd
+- If you run bot locally using cmd:
+```bash
+go run ./cmd/bot
+```  
+### Bot commands
+
+**Requirement fields marked as (!req)**
+
+- `/start` - starts bot
+- `/create title(!req) | description` - creates new task
+- `/delete id(!req)` - deletes task by id
+- `/get id(!req)` - returns task by id
+- `/update id(!req) | status[0 - pending, 1 - running, 2 - done](!req) | title | description` - updates task information by id
+- `/list page(!req) | limit(!req)` - returns limited(max 10) amount of tasks, navigation through pages(page)
+
 
 ## gRPC API ([Protocol Buffers](https://protobuf.dev/))
 
@@ -146,8 +188,8 @@ Gets task from database by `id` and returns it
 ```
 
 ### UpdateTask()
-`Necessary requests: id`  
-`Soft requests(leave field empty if not needed to update): status, title, description`  
+`Necessary requests: id, status`  
+`Soft requests(leave field empty if not needed to update): title, description`  
 
 Updates task in database using soft requests fields and returns it 
 
@@ -185,9 +227,7 @@ Tasks are sorted by `created_at`
 ```json
 {
     "tasks": [
-        {
-            "task":"Task"
-        }
+        "Task"
     ]
 }
 ```

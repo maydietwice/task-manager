@@ -89,7 +89,7 @@ go run ./cmd/bot
 ```  
 ### Bot commands
 
-**Requirement fields marked as (!req)**
+**Required fields marked as (!req)**
 
 - `/start` - starts bot
 - `/create title(!req) | description` - creates new task

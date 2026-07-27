@@ -9,15 +9,30 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/golang-jwt/jwt/v5"
+	rdb "github.com/maydietwice/task-manager/internal/redis"
 	"github.com/maydietwice/task-manager/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
+var defaultReplyKeyboard = tgbotapi.NewReplyKeyboard(
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("create"),
+		tgbotapi.NewKeyboardButton("delete"),
+	),
+
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("get"),
+		tgbotapi.NewKeyboardButton("update"),
+		tgbotapi.NewKeyboardButton("list"),
+	),
+)
+
 type Handler struct {
 	client proto.TaskServiceClient
 	bot    *tgbotapi.BotAPI
+	repo   *rdb.Repository
 	secret []byte
 }
 
@@ -26,8 +41,47 @@ func NewHandler(client proto.TaskServiceClient, bot *tgbotapi.BotAPI, secret str
 }
 
 func (h *Handler) HandleUpdate(update tgbotapi.Update) {
-	if update.Message == nil || !update.Message.IsCommand() {
+	if update.Message != nil && update.Message.IsCommand() {
+		if update.Message.Command() != "start" {
+			h.bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid command."))
+
+			return
+		}
+
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "This bot helps you managing yout tasks. Choose one of the buttons below.")
+		msg.ReplyMarkup = defaultReplyKeyboard
+		h.repo.ClearState(context.Background(), update.Message.Chat.ID)
+		h.bot.Send(msg)
+
 		return
+	}
+
+	chatInfo, err := h.repo.GetChatInfo(context.Background(), update.Message.Chat.ID)
+	if err != nil {
+		log.Printf("error handling update | chatId: %v, error: %v", update.Message.Chat.ID, err)
+
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Can not handle your request. Contact support.")
+
+		msg.ReplyMarkup = defaultReplyKeyboard
+
+		h.repo.ClearState(context.Background(), update.Message.Chat.ID)
+
+		h.bot.Send(msg)
+	}
+
+	currentState, ok := chatInfo["state"]
+
+	switch currentState {
+	case "create":
+		h.handleCreate(update)
+	case "delete":
+	case "get":
+	case "update":
+	case "list":
+	default:
+	}
+
+	switch update.Message.Text {
 	}
 
 	switch update.Message.Command() {
@@ -42,14 +96,19 @@ func (h *Handler) HandleUpdate(update tgbotapi.Update) {
 	case "list":
 		h.list(update)
 	case "start":
-		h.bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Input command from the list below."))
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "This bot helps you managing yout tasks. Choose one of the buttons below.")
+
+		msg.ReplyMarkup = defaultReplyKeyboard
+
+		h.repo.ClearState(context.Background(), update.Message.Chat.ID)
+
+		h.bot.Send(msg)
 	default:
 		h.bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid command."))
 	}
 }
 
 func (h *Handler) newCtx(update tgbotapi.Update) (context.Context, error) {
-
 	jwtToken := jwt.New(jwt.SigningMethodHS256)
 
 	jwtToken.Claims = jwt.MapClaims{
@@ -57,7 +116,6 @@ func (h *Handler) newCtx(update tgbotapi.Update) (context.Context, error) {
 	}
 
 	token, err := jwtToken.SignedString(h.secret)
-
 	if err != nil {
 		return nil, err
 	}
@@ -69,9 +127,11 @@ func (h *Handler) newCtx(update tgbotapi.Update) (context.Context, error) {
 	return ctx, nil
 }
 
+func (h *Handler) handleCreate(update tgbotapi.Update) {
+}
+
 func (h *Handler) create(update tgbotapi.Update) {
 	ctx, err := h.newCtx(update)
-
 	if err != nil {
 		log.Printf("create ctx err | chatId: %v, msgId: %v, err: %v\n", update.Message.Chat.ID, update.Message.MessageID, err)
 
@@ -101,7 +161,6 @@ func (h *Handler) create(update tgbotapi.Update) {
 	}
 
 	resp, err := h.client.CreateTask(ctx, &proto.CreateTaskRequest{Title: strings.TrimSpace(userMsg[0]), Description: description})
-
 	if err != nil {
 		log.Printf("create response err | chatId: %v, msgId: %v, err: %v\n", update.Message.Chat.ID, update.Message.MessageID, err)
 
@@ -123,7 +182,6 @@ func (h *Handler) create(update tgbotapi.Update) {
 
 func (h *Handler) delete(update tgbotapi.Update) {
 	ctx, err := h.newCtx(update)
-
 	if err != nil {
 		log.Printf("delete ctx err | chatId: %v, msgId: %v, err: %v\n", update.Message.Chat.ID, update.Message.MessageID, err)
 
@@ -147,7 +205,6 @@ func (h *Handler) delete(update tgbotapi.Update) {
 	}
 
 	_, err = h.client.DeleteTask(ctx, &proto.DeleteTaskRequest{Id: userMsg})
-
 	if err != nil {
 		log.Printf("delete response err | chatId: %v, msgId: %v, err: %v\n", update.Message.Chat.ID, update.Message.MessageID, err)
 
@@ -167,7 +224,6 @@ func (h *Handler) delete(update tgbotapi.Update) {
 
 func (h *Handler) get(update tgbotapi.Update) {
 	ctx, err := h.newCtx(update)
-
 	if err != nil {
 		log.Printf("get ctx err | chatId: %v, msgId: %v, err: %v\n", update.Message.Chat.ID, update.Message.MessageID, err)
 
@@ -221,7 +277,6 @@ func (h *Handler) get(update tgbotapi.Update) {
 
 func (h *Handler) update(update tgbotapi.Update) {
 	ctx, err := h.newCtx(update)
-
 	if err != nil {
 		log.Printf("update ctx err | chatId: %v, msgId: %v, err: %v\n", update.Message.Chat.ID, update.Message.MessageID, err)
 
@@ -247,7 +302,6 @@ func (h *Handler) update(update tgbotapi.Update) {
 	id := strings.TrimSpace(userMsg[0])
 
 	statusT, err := strconv.Atoi(strings.TrimSpace(userMsg[1]))
-
 	if err != nil {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid format. Use /update id(!required) | status(!required) | title | description")
 
@@ -308,7 +362,6 @@ func (h *Handler) update(update tgbotapi.Update) {
 
 func (h *Handler) list(update tgbotapi.Update) {
 	ctx, err := h.newCtx(update)
-
 	if err != nil {
 		log.Printf("list ctx err | chatId: %v, msgId: %v, err: %v\n", update.Message.Chat.ID, update.Message.MessageID, err)
 
@@ -332,7 +385,6 @@ func (h *Handler) list(update tgbotapi.Update) {
 	}
 
 	page, err := strconv.Atoi(strings.TrimSpace(userMsg[0]))
-
 	if err != nil {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid format. Use /list page | limit")
 
@@ -342,7 +394,6 @@ func (h *Handler) list(update tgbotapi.Update) {
 	}
 
 	limit, err := strconv.Atoi(strings.TrimSpace(userMsg[1]))
-
 	if err != nil {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid format. Use /list page | limit")
 
@@ -356,7 +407,6 @@ func (h *Handler) list(update tgbotapi.Update) {
 	}
 
 	resp, err := h.client.ListTask(ctx, &proto.ListTaskRequest{Page: int32(page), Limit: int32(limit)})
-
 	if err != nil {
 		log.Printf("list response err | chatId: %v, msgId: %v, err: %v\n", update.Message.Chat.ID, update.Message.MessageID, err)
 

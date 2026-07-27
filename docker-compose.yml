@@ -26,12 +26,27 @@ services:
         - .env
   bot:
     depends_on: 
-     - app
+      app:
+      redis:
+        condition: service_healthy
     build:
       context: .
       dockerfile: Dockerfile.bot
     env_file:
      - .env
+  redis:
+    image: redis:8.8.1
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${RDB_PWD}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${RDB_PWD} ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
 
 volumes:
   postgres_data:
+  redis_data:

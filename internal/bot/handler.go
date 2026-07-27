@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	rdb "github.com/maydietwice/task-manager/internal/redis"
 	"github.com/maydietwice/task-manager/proto"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -48,63 +49,39 @@ func (h *Handler) HandleUpdate(update tgbotapi.Update) {
 			return
 		}
 
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "This bot helps you managing yout tasks. Choose one of the buttons below.")
-		msg.ReplyMarkup = defaultReplyKeyboard
-		h.repo.ClearState(context.Background(), update.Message.Chat.ID)
-		h.bot.Send(msg)
+		h.returnToMainMenu(update, nil)
 
 		return
 	}
 
 	chatInfo, err := h.repo.GetChatInfo(context.Background(), update.Message.Chat.ID)
-	if err != nil {
-		log.Printf("error handling update | chatId: %v, error: %v", update.Message.Chat.ID, err)
+	if err != nil && err != redis.Nil {
+		h.returnToMainMenu(update, err)
+	}
 
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Can not handle your request. Contact support.")
-
-		msg.ReplyMarkup = defaultReplyKeyboard
-
-		h.repo.ClearState(context.Background(), update.Message.Chat.ID)
-
-		h.bot.Send(msg)
+	if err == redis.Nil {
+		switch update.Message.Text {
+		case "create":
+			h.handleCreate(update, chatInfo)
+		case "delete":
+		case "get":
+		case "update":
+		case "list":
+		}
 	}
 
 	currentState, ok := chatInfo["state"]
 
-	switch currentState {
-	case "create":
-		h.handleCreate(update)
-	case "delete":
-	case "get":
-	case "update":
-	case "list":
-	default:
-	}
-
-	switch update.Message.Text {
-	}
-
-	switch update.Message.Command() {
-	case "create":
-		h.create(update)
-	case "delete":
-		h.delete(update)
-	case "get":
-		h.get(update)
-	case "update":
-		h.update(update)
-	case "list":
-		h.list(update)
-	case "start":
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "This bot helps you managing yout tasks. Choose one of the buttons below.")
-
-		msg.ReplyMarkup = defaultReplyKeyboard
-
-		h.repo.ClearState(context.Background(), update.Message.Chat.ID)
-
-		h.bot.Send(msg)
-	default:
-		h.bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid command."))
+	if ok {
+		switch currentState {
+		case "create":
+			h.handleCreate(update, chatInfo)
+		case "delete":
+		case "get":
+		case "update":
+		case "list":
+		default:
+		}
 	}
 }
 
@@ -127,7 +104,91 @@ func (h *Handler) newCtx(update tgbotapi.Update) (context.Context, error) {
 	return ctx, nil
 }
 
-func (h *Handler) handleCreate(update tgbotapi.Update) {
+func (h *Handler) returnToMainMenu(update tgbotapi.Update, err error) {
+	h.repo.ClearState(context.Background(), update.Message.Chat.ID)
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "This bot helps you managing your tasks. Choose one of the buttons below.")
+
+	if err != nil {
+		log.Printf("error handling request | chatID: %v, err: %v", update.Message.Chat.ID, err)
+		msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Can not handle your request. Contact support.")
+	}
+
+	msg.ReplyMarkup = defaultReplyKeyboard
+	h.bot.Send(msg)
+}
+
+func (h *Handler) handleCreate(update tgbotapi.Update, chatInfo map[string]string) {
+	step := chatInfo["step"]
+
+	switch step {
+	case "title":
+		{
+			hFields := []string{
+				"state", "create",
+				"step", "description",
+				"title", update.Message.Text,
+				"description", "",
+			}
+			err := h.repo.SetChatInfo(context.Background(), update.Message.Chat.ID, hFields...)
+			if err != nil {
+				h.returnToMainMenu(update, err)
+
+				return
+			}
+
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Enter your tasks's name")
+			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+			h.bot.Send(msg)
+
+			return
+		}
+	case "description":
+		{
+			ctx, err := h.newCtx(update)
+			if err != nil {
+				h.returnToMainMenu(update, err)
+
+				return
+			}
+			resp, err := h.client.CreateTask(ctx, &proto.CreateTaskRequest{Title: chatInfo["create"], Description: chatInfo["description"]})
+			if err != nil {
+				h.returnToMainMenu(update, err)
+
+				return
+			}
+			msgText := fmt.Sprintf("ID: %v\nTitle: %v\nDescription: %v\nStatus: %v\nCreated at: %v\nUpdated at: %v\n", resp.Task.Id, resp.Task.Title, resp.Task.Description, resp.Task.Status, resp.Task.CreatedAt, resp.Task.UpdatedAt)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgText)
+			h.bot.Send(msg)
+
+			h.returnToMainMenu(update, nil)
+
+			return
+		}
+	default:
+		{
+			hFields := []string{
+				"state", "create",
+				"step", "title",
+				"title", "",
+				"description", "",
+			}
+
+			err := h.repo.SetChatInfo(context.Background(), update.Message.Chat.ID, hFields...)
+
+			if err != nil {
+				h.returnToMainMenu(update, err)
+
+				return
+			}
+
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Enter your tasks's name")
+			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+			h.bot.Send(msg)
+
+			return
+		}
+	}
 }
 
 func (h *Handler) create(update tgbotapi.Update) {

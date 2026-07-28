@@ -59,7 +59,7 @@ func main() {
 
 	client := proto.NewTaskServiceClient(conn)
 
-	handler := bothandler.NewHandler(client, tgBot, os.Getenv("JWT_SECRET_KEY"))
+	handler := bothandler.NewHandler(client, tgBot, os.Getenv("JWT_SECRET_KEY"), repoRdb)
 
 	u := tgbotapi.NewUpdate(0)
 

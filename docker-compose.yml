@@ -27,6 +27,7 @@ services:
   bot:
     depends_on: 
       app:
+        condition: service_started
       redis:
         condition: service_healthy
     build:
@@ -45,7 +46,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - redis-data:/data
+      - redis_data:/data
 
 volumes:
   postgres_data:

@@ -37,12 +37,16 @@ type Handler struct {
 	secret []byte
 }
 
-func NewHandler(client proto.TaskServiceClient, bot *tgbotapi.BotAPI, secret string) *Handler {
-	return &Handler{client: client, bot: bot, secret: []byte(secret)}
+func NewHandler(client proto.TaskServiceClient, bot *tgbotapi.BotAPI, secret string, repo *rdb.Repository) *Handler {
+	return &Handler{client: client, bot: bot, secret: []byte(secret), repo: repo}
 }
 
 func (h *Handler) HandleUpdate(update tgbotapi.Update) {
-	if update.Message != nil && update.Message.IsCommand() {
+	if update.Message == nil {
+		return
+	}
+
+	if update.Message.IsCommand() {
 		if update.Message.Command() != "start" {
 			h.bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid command."))
 
@@ -55,11 +59,15 @@ func (h *Handler) HandleUpdate(update tgbotapi.Update) {
 	}
 
 	chatInfo, err := h.repo.GetChatInfo(context.Background(), update.Message.Chat.ID)
-	if err != nil && err != redis.Nil {
+	if err != nil {
 		h.returnToMainMenu(update, err)
+
+		return
 	}
 
-	if err == redis.Nil {
+	currentState, ok := chatInfo["state"]
+
+	if !ok {
 		switch update.Message.Text {
 		case "create":
 			h.handleCreate(update, chatInfo)
@@ -68,20 +76,18 @@ func (h *Handler) HandleUpdate(update tgbotapi.Update) {
 		case "update":
 		case "list":
 		}
+
+		return
 	}
 
-	currentState, ok := chatInfo["state"]
-
-	if ok {
-		switch currentState {
-		case "create":
-			h.handleCreate(update, chatInfo)
-		case "delete":
-		case "get":
-		case "update":
-		case "list":
-		default:
-		}
+	switch currentState {
+	case "create":
+		h.handleCreate(update, chatInfo)
+	case "delete":
+	case "get":
+	case "update":
+	case "list":
+	default:
 	}
 }
 
@@ -125,7 +131,6 @@ func (h *Handler) handleCreate(update tgbotapi.Update, chatInfo map[string]strin
 	case "title":
 		{
 			hFields := []string{
-				"state", "create",
 				"step", "description",
 				"title", update.Message.Text,
 				"description", "",
@@ -137,7 +142,7 @@ func (h *Handler) handleCreate(update tgbotapi.Update, chatInfo map[string]strin
 				return
 			}
 
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Enter your tasks's name")
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Enter your tasks's description(what's you gonna do?)")
 			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 			h.bot.Send(msg)
 
@@ -151,7 +156,7 @@ func (h *Handler) handleCreate(update tgbotapi.Update, chatInfo map[string]strin
 
 				return
 			}
-			resp, err := h.client.CreateTask(ctx, &proto.CreateTaskRequest{Title: chatInfo["create"], Description: chatInfo["description"]})
+			resp, err := h.client.CreateTask(ctx, &proto.CreateTaskRequest{Title: chatInfo["title"], Description: update.Message.Text})
 			if err != nil {
 				h.returnToMainMenu(update, err)
 
@@ -175,7 +180,6 @@ func (h *Handler) handleCreate(update tgbotapi.Update, chatInfo map[string]strin
 			}
 
 			err := h.repo.SetChatInfo(context.Background(), update.Message.Chat.ID, hFields...)
-
 			if err != nil {
 				h.returnToMainMenu(update, err)
 

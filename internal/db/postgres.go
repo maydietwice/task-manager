@@ -28,13 +28,11 @@ type DBConfig struct {
 
 func NewConnection(config DBConfig) (*sql.DB, error) {
 	db, err := sql.Open("postgres", config.ConnectionString)
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = db.Ping()
-
 	if err != nil {
 		return nil, errors.New("Database is not answering, connection failed")
 	}
@@ -61,7 +59,6 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 				updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +71,6 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 			id = $1
 			AND owner_id = $2`,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +90,6 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 			tasks.id = $1
 			AND tasks.owner_id = $2`,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -112,14 +107,12 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 			tasks
 		WHERE
 			tasks.owner_id = $1
+			AND tasks.created_at < $2
 		ORDER BY
-			tasks.created_at
+			tasks.created_at DESC
 		LIMIT
-			$2
-		OFFSET
-			$3`,
+			5`,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +129,6 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 			id = $5
 			AND owner_id = $6`,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -187,9 +179,8 @@ func (r *Repository) Get(id, ownerId string) (*task.Task, error) {
 	return &t, err
 }
 
-func (r *Repository) List(ownerId string, page, limit int) ([]task.Task, error) {
-	rows, err := r.listStmt.Query(ownerId, limit, (page-1)*limit)
-
+func (r *Repository) List(ownerId string, after time.Time) ([]task.Task, error) {
+	rows, err := r.listStmt.Query(ownerId, after)
 	if err != nil {
 		return nil, err
 	}
@@ -210,12 +201,15 @@ func (r *Repository) List(ownerId string, page, limit int) ([]task.Task, error) 
 			&t.CreatedAt,
 			&t.UpdatedAt,
 		)
-
 		if err != nil {
 			return tList, err
 		}
 
 		tList = append(tList, t)
+	}
+
+	if rows.Err() != nil {
+		return tList, err
 	}
 
 	return tList, nil

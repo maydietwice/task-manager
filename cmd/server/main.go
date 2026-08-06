@@ -12,7 +12,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/maydietwice/task-manager/internal/db"
 	"github.com/maydietwice/task-manager/internal/handler"
-	"github.com/maydietwice/task-manager/internal/middleware"
+	serverinterceptor "github.com/maydietwice/task-manager/internal/interceptor"
 	"github.com/maydietwice/task-manager/internal/service"
 	"github.com/maydietwice/task-manager/proto"
 	"google.golang.org/grpc"
@@ -26,25 +26,21 @@ func init() {
 
 func main() {
 	maxOpenConns, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
-
 	if err != nil {
 		log.Fatalf("Convertion error: %v\n", err)
 	}
 
 	maxIdleConns, err := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNS"))
-
 	if err != nil {
 		log.Fatalf("Convertion error: %v\n", err)
 	}
 
 	maxIdleTime, err := time.ParseDuration(os.Getenv("DB_CONN_MAX_IDLE_TIME"))
-
 	if err != nil {
 		log.Fatalf("Convertion error: %v\n", err)
 	}
 
 	maxLifetime, err := time.ParseDuration(os.Getenv("DB_CONN_MAX_LIFETIME"))
-
 	if err != nil {
 		log.Fatalf("Convertion error: %v\n", err)
 	}
@@ -57,7 +53,6 @@ func main() {
 		MaxLifetime:      maxLifetime,
 	}
 	database, err := db.NewConnection(config)
-
 	if err != nil {
 		log.Fatalf("Unable to initialize new connection to DB: %v\n", err)
 	}
@@ -65,13 +60,11 @@ func main() {
 	log.Println("DB connection successful")
 
 	repo, err := db.NewRepository(database)
-
 	if err != nil {
 		log.Fatalf("Unable to inititalize new repository: %v\n", err)
 	}
 
 	lis, err := net.Listen("tcp", os.Getenv("NET_LISTEN_ADDRESS"))
-
 	if err != nil {
 		log.Fatalf("Unable to initialize listener: %v\n", err)
 	}
@@ -82,7 +75,7 @@ func main() {
 
 	handler := handler.NewHandler(serv)
 
-	server := grpc.NewServer(grpc.UnaryInterceptor(middleware.JWTInterceptor(os.Getenv("JWT_SECRET_KEY"))))
+	server := grpc.NewServer(grpc.UnaryInterceptor(serverinterceptor.JWTInterceptor(os.Getenv("JWT_SECRET_KEY"))))
 
 	proto.RegisterTaskServiceServer(server, handler)
 

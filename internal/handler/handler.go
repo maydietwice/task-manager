@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/maydietwice/task-manager/internal/service"
 	"github.com/maydietwice/task-manager/internal/task"
@@ -22,12 +23,21 @@ func NewHandler(s *service.Service) *Handler {
 
 func (h *Handler) Register(ctx context.Context, r *proto.RegisterRequest) (*proto.RegisterResponse, error) {
 	jwtToken, err := h.service.Register()
-
 	if err != nil {
 		return nil, err
 	}
 
 	return &proto.RegisterResponse{Token: jwtToken}, nil
+}
+
+func getOwnerID(ctx context.Context) (string, error) {
+	ownerID, ok := ctx.Value("owner_id").(string)
+	if !ok {
+		err := fmt.Errorf("Type expected: string, got: %T", ctx.Value("owner_id"))
+		return "", err
+	}
+
+	return ownerID, nil
 }
 
 func taskToProto(t task.Task) *proto.Task {
@@ -45,10 +55,12 @@ func taskToProto(t task.Task) *proto.Task {
 }
 
 func (h *Handler) CreateTask(ctx context.Context, r *proto.CreateTaskRequest) (*proto.CreateTaskResponse, error) {
-	ownerId := ctx.Value("owner_id").(string)
+	ownerID, err := getOwnerID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	t, err := h.service.CreateTask(ownerId, r.Title, r.Description)
-
+	t, err := h.service.CreateTask(ownerID, r.Title, r.Description)
 	if err != nil {
 		return nil, err
 	}
@@ -57,10 +69,12 @@ func (h *Handler) CreateTask(ctx context.Context, r *proto.CreateTaskRequest) (*
 }
 
 func (h *Handler) DeleteTask(ctx context.Context, r *proto.DeleteTaskRequest) (*proto.DeleteTaskResponse, error) {
-	ownerId := ctx.Value("owner_id").(string)
+	ownerID, err := getOwnerID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	err := h.service.DeleteTask(r.Id, ownerId)
-
+	err = h.service.DeleteTask(r.Id, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -69,10 +83,12 @@ func (h *Handler) DeleteTask(ctx context.Context, r *proto.DeleteTaskRequest) (*
 }
 
 func (h *Handler) GetTask(ctx context.Context, r *proto.GetTaskRequest) (*proto.GetTaskResponse, error) {
-	ownerId := ctx.Value("owner_id").(string)
+	ownerID, err := getOwnerID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	t, err := h.service.GetTask(r.Id, ownerId)
-
+	t, err := h.service.GetTask(r.Id, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +101,12 @@ func (h *Handler) GetTask(ctx context.Context, r *proto.GetTaskRequest) (*proto.
 }
 
 func (h *Handler) UpdateTask(ctx context.Context, r *proto.UpdateTaskRequest) (*proto.UpdateTaskResponse, error) {
-	ownerId := ctx.Value("owner_id").(string)
+	ownerID, err := getOwnerID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	task, err := h.service.UpdateTask(r.Id, ownerId, r.Title, r.Description, task.Status(r.Status))
-
+	task, err := h.service.UpdateTask(r.Id, ownerID, r.Title, r.Description, task.Status(r.Status))
 	if err != nil {
 		return nil, err
 	}
@@ -97,10 +115,12 @@ func (h *Handler) UpdateTask(ctx context.Context, r *proto.UpdateTaskRequest) (*
 }
 
 func (h *Handler) ListTask(ctx context.Context, r *proto.ListTaskRequest) (*proto.ListTaskResponse, error) {
-	ownerId := ctx.Value("owner_id").(string)
+	ownerID, err := getOwnerID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	list, err := h.service.ListTask(ownerId, int(r.Page), int(r.Limit))
-
+	list, err := h.service.ListTask(ownerID, r.After.AsTime())
 	if err != nil {
 		return nil, err
 	}

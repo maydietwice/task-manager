@@ -86,24 +86,12 @@ func (s *Service) GetTask(id, ownerId string) (*task.Task, error) {
 	return s.repo.Get(id, ownerId)
 }
 
-func (s *Service) ListTask(ownerId string, page, limit int) ([]task.Task, error) {
+func (s *Service) ListTask(ownerId string, after time.Time) ([]task.Task, error) {
 	if ownerId == "" {
 		return nil, errors.New("owner_id can't be an empty string")
 	}
 
-	if page < 1 {
-		return nil, errors.New("page value can't be less than 1")
-	}
-
-	if limit < 1 {
-		return nil, errors.New("limit value can't be less than 1")
-	}
-
-	if limit > 100 {
-		limit = 100
-	}
-
-	return s.repo.List(ownerId, page, limit)
+	return s.repo.List(ownerId, after)
 }
 
 func (s *Service) UpdateTask(id, ownerId, title, description string, statusT task.Status) (task.Task, error) {

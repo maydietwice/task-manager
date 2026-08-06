@@ -9,6 +9,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 	bothandler "github.com/maydietwice/task-manager/internal/bot"
+	clientinterceptor "github.com/maydietwice/task-manager/internal/bot/interceptor"
 	rdb "github.com/maydietwice/task-manager/internal/redis"
 	"github.com/maydietwice/task-manager/proto"
 	"google.golang.org/grpc"
@@ -50,7 +51,7 @@ func main() {
 		log.Fatalf("unable to request bot's commands: %v\n", err)
 	}
 
-	conn, err := grpc.NewClient(os.Getenv("GRPC_SERVER_ADDRESS"), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(os.Getenv("GRPC_SERVER_ADDRESS"), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithUnaryInterceptor(clientinterceptor.JWTClientInterceptor(os.Getenv("JWT_SECRET_KEY"))))
 	if err != nil {
 		log.Fatalf("client connection failed: %v\n", err)
 	}

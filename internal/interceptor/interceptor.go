@@ -1,4 +1,4 @@
-package middleware
+package serverinterceptor
 
 import (
 	"context"
@@ -41,7 +41,6 @@ func JWTInterceptor(secret string) grpc.UnaryServerInterceptor {
 		jwtToken, err := jwt.ParseWithClaims(tSplitted[1], jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
 			return []byte(secret), nil
 		}, jwt.WithValidMethods([]string{"HS256"}))
-
 		if err != nil {
 			return nil, status.Error(codes.Unauthenticated, err.Error())
 		}
@@ -61,6 +60,5 @@ func JWTInterceptor(secret string) grpc.UnaryServerInterceptor {
 		ctx = context.WithValue(ctx, "owner_id", ownerId)
 
 		return handler(ctx, req)
-
 	}
 }

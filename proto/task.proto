@@ -59,8 +59,7 @@ message UpdateTaskResponse{
 }
 
 message ListTaskRequest {
-    int32 page = 1;
-    int32 limit = 2;
+    google.protobuf.Timestamp after = 1;
 }
 
 message ListTaskResponse {

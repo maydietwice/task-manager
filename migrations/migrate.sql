@@ -6,4 +6,7 @@ CREATE TABLE IF NOT EXISTS tasks(
     "description" TEXT,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
-)
+);
+
+CREATE INDEX IF NOT EXISTS idx_owner_created
+ON tasks (owner_id, created_at DESC);

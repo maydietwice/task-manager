@@ -1,21 +1,24 @@
 package db
 
 import (
-	"database/sql"
-	"errors"
+	"context"
+	"log"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/maydietwice/task-manager/internal/task"
 )
 
+const (
+	maxRetries  = 5
+	connTimeout = time.Second
+	retryDelay  = 3 * time.Second
+)
+
 type Repository struct {
-	db         *sql.DB
-	createStmt *sql.Stmt
-	deleteStmt *sql.Stmt
-	getStmt    *sql.Stmt
-	listStmt   *sql.Stmt
-	updateStmt *sql.Stmt
+	db *pgxpool.Pool
 }
 
 type DBConfig struct {
@@ -26,28 +29,44 @@ type DBConfig struct {
 	MaxLifetime      time.Duration
 }
 
-func NewConnection(config DBConfig) (*sql.DB, error) {
-	db, err := sql.Open("postgres", config.ConnectionString)
-	if err != nil {
-		return nil, err
+func NewConnection(config DBConfig) (*pgxpool.Pool, error) {
+	var conn *pgxpool.Pool
+	var err error
+
+	for i := 1; i <= maxRetries; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), connTimeout)
+		conn, err = pgxpool.New(ctx, config.ConnectionString)
+		cancel()
+		if err != nil {
+			log.Printf("Can not create pgxpool, retrying... %v/%v", i, maxRetries)
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		ctx, cancel = context.WithTimeout(context.Background(), connTimeout)
+		err = conn.Ping(ctx)
+		cancel()
+		if err != nil {
+			log.Printf("Can not create pgxpool, retrying... %v/%v", i, maxRetries)
+			time.Sleep(retryDelay)
+			continue
+		}
+		break
 	}
 
-	err = db.Ping()
-	if err != nil {
-		return nil, errors.New("Database is not answering, connection failed")
-	}
-
-	db.SetMaxOpenConns(config.MaxOpenConns)
-	db.SetMaxIdleConns(config.MaxIdleConns)
-	db.SetConnMaxIdleTime(config.MaxIdleTime)
-	db.SetConnMaxLifetime(config.MaxLifetime)
-
-	return db, nil
+	return conn, err
 }
 
-func NewRepository(db *sql.DB) (*Repository, error) {
-	createStmt, err := db.Prepare(
-		`INSERT
+func NewRepository(db *pgxpool.Pool) (*Repository, error) {
+	newRepository := Repository{
+		db: db,
+	}
+
+	return &newRepository, nil
+}
+
+func (r *Repository) Create(ctx context.Context, t task.Task) error {
+	query := `INSERT
 		INTO
 			tasks(
 				id,
@@ -57,26 +76,26 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 				status,
 				created_at,
 				updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-	)
-	if err != nil {
-		return nil, err
-	}
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err := r.db.Exec(ctx, query, t.Id, t.OwnerId, t.Title, t.Description, t.Status, t.CreatedAt, t.UpdatedAt)
 
-	deleteStmt, err := db.Prepare(
-		`DELETE
+	return err
+}
+
+func (r *Repository) Delete(ctx context.Context, id, ownerId string) error {
+	query := `DELETE
 		FROM
 			tasks
 		WHERE
 			id = $1
-			AND owner_id = $2`,
-	)
-	if err != nil {
-		return nil, err
-	}
+			AND owner_id = $2`
+	_, err := r.db.Exec(ctx, query, id, ownerId)
 
-	getStmt, err := db.Prepare(
-		`SELECT
+	return err
+}
+
+func (r *Repository) Get(ctx context.Context, id, ownerId string) (*task.Task, error) {
+	query := `SELECT
 			tasks.id,
 			tasks.owner_id,
 			tasks.title,
@@ -88,14 +107,27 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 			tasks
 		WHERE
 			tasks.id = $1
-			AND tasks.owner_id = $2`,
+			AND tasks.owner_id = $2`
+	row := r.db.QueryRow(ctx, query, id, ownerId)
+	t := task.Task{}
+	err := row.Scan(
+		&t.Id,
+		&t.OwnerId,
+		&t.Title,
+		&t.Description,
+		&t.Status,
+		&t.CreatedAt,
+		&t.UpdatedAt,
 	)
-	if err != nil {
-		return nil, err
+	if err == pgx.ErrNoRows {
+		return nil, nil
 	}
 
-	listStmt, err := db.Prepare(
-		`SELECT
+	return &t, err
+}
+
+func (r *Repository) List(ctx context.Context, ownerId string, after time.Time) ([]task.Task, error) {
+	query := `SELECT
 			tasks.id,
 			tasks.owner_id,
 			tasks.title,
@@ -111,86 +143,14 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 		ORDER BY
 			tasks.created_at DESC
 		LIMIT
-			5`,
-	)
+			5`
+	rows, err := r.db.Query(ctx, query, ownerId, after)
 	if err != nil {
 		return nil, err
 	}
-
-	updateStmt, err := db.Prepare(
-		`UPDATE
-			tasks
-		SET
-			status = $1,
-			title = $2,
-			description = $3,
-			updated_at = $4
-		WHERE
-			id = $5
-			AND owner_id = $6`,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	newRepository := Repository{
-		db:         db,
-		createStmt: createStmt,
-		deleteStmt: deleteStmt,
-		getStmt:    getStmt,
-		listStmt:   listStmt,
-		updateStmt: updateStmt,
-	}
-
-	return &newRepository, nil
-}
-
-func (r *Repository) Create(t task.Task) error {
-	_, err := r.createStmt.Exec(t.Id, t.OwnerId, t.Title, t.Description, t.Status, t.CreatedAt, t.UpdatedAt)
-
-	return err
-}
-
-func (r *Repository) Delete(id, ownerId string) error {
-	_, err := r.deleteStmt.Exec(id, ownerId)
-
-	return err
-}
-
-func (r *Repository) Get(id, ownerId string) (*task.Task, error) {
-	row := r.getStmt.QueryRow(id, ownerId)
-
-	t := task.Task{}
-
-	err := row.Scan(
-		&t.Id,
-		&t.OwnerId,
-		&t.Title,
-		&t.Description,
-		&t.Status,
-		&t.CreatedAt,
-		&t.UpdatedAt,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-
-	return &t, err
-}
-
-func (r *Repository) List(ownerId string, after time.Time) ([]task.Task, error) {
-	rows, err := r.listStmt.Query(ownerId, after)
-	if err != nil {
-		return nil, err
-	}
-
 	defer rows.Close()
-
 	t := task.Task{}
-
 	tList := make([]task.Task, 0)
-
 	for rows.Next() {
 		err := rows.Scan(
 			&t.Id,
@@ -207,7 +167,6 @@ func (r *Repository) List(ownerId string, after time.Time) ([]task.Task, error) 
 
 		tList = append(tList, t)
 	}
-
 	if rows.Err() != nil {
 		return tList, err
 	}
@@ -215,8 +174,18 @@ func (r *Repository) List(ownerId string, after time.Time) ([]task.Task, error) 
 	return tList, nil
 }
 
-func (r *Repository) Update(id, ownerId, title, description string, status task.Status, updatedAt time.Time) error {
-	_, err := r.updateStmt.Exec(status, title, description, updatedAt, id, ownerId)
+func (r *Repository) Update(ctx context.Context, id, ownerId, title, description string, status task.Status, updatedAt time.Time) error {
+	query := `UPDATE
+			tasks
+		SET
+			status = $1,
+			title = $2,
+			description = $3,
+			updated_at = $4
+		WHERE
+			id = $5
+			AND owner_id = $6`
+	_, err := r.db.Exec(ctx, query, status, title, description, updatedAt, id, ownerId)
 
 	return err
 }

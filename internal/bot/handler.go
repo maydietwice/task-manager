@@ -64,7 +64,7 @@ func (h *Handler) HandleUpdate(update tgbotapi.Update) {
 
 	chatInfo, err := h.repo.GetChatInfo(context.Background(), update.Message.Chat.ID)
 	if err != nil {
-		h.returnToMainMenu(update, err)
+		h.returnToMainMenu(ctx, update, err)
 
 		return
 	}
@@ -77,9 +77,9 @@ func (h *Handler) HandleUpdate(update tgbotapi.Update) {
 
 	switch action {
 	case "create":
-		h.handleCreate(update, chatInfo)
+		h.handleCreate(ctx, update, chatInfo)
 	case "delete":
-		h.handleDelete(update, chatInfo)
+		h.handleDelete(ctx, update, chatInfo)
 	case "get":
 	case "update":
 	case "list":

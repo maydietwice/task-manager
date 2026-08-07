@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -23,7 +24,6 @@ func NewService(repo *db.Repository, secret string) *Service {
 
 func (s *Service) Register() (string, error) {
 	id, err := uuid.NewUUID()
-
 	if err != nil {
 		return "", err
 	}
@@ -38,7 +38,6 @@ func (s *Service) Register() (string, error) {
 	newToken.Claims = jwtMap
 
 	jwtString, err := newToken.SignedString(s.secret)
-
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +45,7 @@ func (s *Service) Register() (string, error) {
 	return jwtString, nil
 }
 
-func (s *Service) CreateTask(ownerId, title, description string) (*task.Task, error) {
+func (s *Service) CreateTask(ctx context.Context, ownerId, title, description string) (*task.Task, error) {
 	if ownerId == "" {
 		return nil, errors.New("owner_id can't be an empty string")
 	}
@@ -56,13 +55,11 @@ func (s *Service) CreateTask(ownerId, title, description string) (*task.Task, er
 	}
 
 	t, err := task.NewTask(ownerId, title, description)
-
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.repo.Create(*t)
-
+	err = s.repo.Create(ctx, *t)
 	if err != nil {
 		return nil, err
 	}
@@ -70,37 +67,36 @@ func (s *Service) CreateTask(ownerId, title, description string) (*task.Task, er
 	return t, nil
 }
 
-func (s *Service) DeleteTask(id, ownerId string) error {
+func (s *Service) DeleteTask(ctx context.Context, id, ownerId string) error {
 	if id == "" {
 		return errors.New("id can't be an empty string")
 	}
 
-	return s.repo.Delete(id, ownerId)
+	return s.repo.Delete(ctx, id, ownerId)
 }
 
-func (s *Service) GetTask(id, ownerId string) (*task.Task, error) {
+func (s *Service) GetTask(ctx context.Context, id, ownerId string) (*task.Task, error) {
 	if id == "" {
 		return nil, errors.New("id can't be an empty string")
 	}
 
-	return s.repo.Get(id, ownerId)
+	return s.repo.Get(ctx, id, ownerId)
 }
 
-func (s *Service) ListTask(ownerId string, after time.Time) ([]task.Task, error) {
+func (s *Service) ListTask(ctx context.Context, ownerId string, after time.Time) ([]task.Task, error) {
 	if ownerId == "" {
 		return nil, errors.New("owner_id can't be an empty string")
 	}
 
-	return s.repo.List(ownerId, after)
+	return s.repo.List(ctx, ownerId, after)
 }
 
-func (s *Service) UpdateTask(id, ownerId, title, description string, statusT task.Status) (task.Task, error) {
+func (s *Service) UpdateTask(ctx context.Context, id, ownerId, title, description string, statusT task.Status) (task.Task, error) {
 	if id == "" {
 		return task.Task{}, errors.New("id can't be an empty string")
 	}
 
-	t, err := s.repo.Get(id, ownerId)
-
+	t, err := s.repo.Get(ctx, id, ownerId)
 	if err != nil {
 		return task.Task{}, err
 	}
@@ -117,8 +113,7 @@ func (s *Service) UpdateTask(id, ownerId, title, description string, statusT tas
 		description = t.Description
 	}
 
-	err = s.repo.Update(id, ownerId, title, description, statusT, time.Now())
-
+	err = s.repo.Update(ctx, id, ownerId, title, description, statusT, time.Now())
 	if err != nil {
 		return task.Task{}, err
 	}

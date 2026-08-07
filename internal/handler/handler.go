@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/maydietwice/task-manager/internal/service"
 	"github.com/maydietwice/task-manager/internal/task"
@@ -11,6 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+const queryTimeout = time.Second * 2
 
 type Handler struct {
 	service *service.Service
@@ -55,12 +58,15 @@ func taskToProto(t task.Task) *proto.Task {
 }
 
 func (h *Handler) CreateTask(ctx context.Context, r *proto.CreateTaskRequest) (*proto.CreateTaskResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
 	ownerID, err := getOwnerID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	t, err := h.service.CreateTask(ownerID, r.Title, r.Description)
+	t, err := h.service.CreateTask(ctx, ownerID, r.Title, r.Description)
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +75,15 @@ func (h *Handler) CreateTask(ctx context.Context, r *proto.CreateTaskRequest) (*
 }
 
 func (h *Handler) DeleteTask(ctx context.Context, r *proto.DeleteTaskRequest) (*proto.DeleteTaskResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
 	ownerID, err := getOwnerID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = h.service.DeleteTask(r.Id, ownerID)
+	err = h.service.DeleteTask(ctx, r.Id, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -83,12 +92,15 @@ func (h *Handler) DeleteTask(ctx context.Context, r *proto.DeleteTaskRequest) (*
 }
 
 func (h *Handler) GetTask(ctx context.Context, r *proto.GetTaskRequest) (*proto.GetTaskResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
 	ownerID, err := getOwnerID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	t, err := h.service.GetTask(r.Id, ownerID)
+	t, err := h.service.GetTask(ctx, r.Id, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,12 +113,15 @@ func (h *Handler) GetTask(ctx context.Context, r *proto.GetTaskRequest) (*proto.
 }
 
 func (h *Handler) UpdateTask(ctx context.Context, r *proto.UpdateTaskRequest) (*proto.UpdateTaskResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
 	ownerID, err := getOwnerID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	task, err := h.service.UpdateTask(r.Id, ownerID, r.Title, r.Description, task.Status(r.Status))
+	task, err := h.service.UpdateTask(ctx, r.Id, ownerID, r.Title, r.Description, task.Status(r.Status))
 	if err != nil {
 		return nil, err
 	}
@@ -115,12 +130,15 @@ func (h *Handler) UpdateTask(ctx context.Context, r *proto.UpdateTaskRequest) (*
 }
 
 func (h *Handler) ListTask(ctx context.Context, r *proto.ListTaskRequest) (*proto.ListTaskResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
 	ownerID, err := getOwnerID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	list, err := h.service.ListTask(ownerID, r.After.AsTime())
+	list, err := h.service.ListTask(ctx, ownerID, r.After.AsTime())
 	if err != nil {
 		return nil, err
 	}

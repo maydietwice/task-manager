@@ -2,10 +2,17 @@ package rdb
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/redis/go-redis/v9"
+)
+
+const (
+	tasksCacheExp   = time.Second * 30
+	userChatInfoExp = time.Hour * 2
 )
 
 type Repository struct {
@@ -39,11 +46,18 @@ func (r *Repository) CloseConnection() {
 
 func (r *Repository) SetChatInfo(ctx context.Context, chatId int64, fields ...string) error {
 	key := "state:" + strconv.Itoa(int(chatId))
-	return r.rdb.HSet(ctx, key, fields).Err()
+	err := r.rdb.HSet(ctx, key, fields).Err()
+	if err != nil {
+		return err
+	}
+	r.rdb.Expire(ctx, key, userChatInfoExp)
+
+	return nil
 }
 
 func (r *Repository) GetChatInfo(ctx context.Context, chatId int64) (map[string]string, error) {
 	info, err := r.rdb.HGetAll(ctx, "state:"+strconv.Itoa(int(chatId))).Result()
+
 	return info, err
 }
 
@@ -52,4 +66,21 @@ func (r *Repository) ClearState(ctx context.Context, chatId int64) {
 	if err != nil {
 		log.Printf("clear state err | chatId: %v, err: %v", chatId, err)
 	}
+}
+
+func (r *Repository) CacheUserTasks(ctx context.Context, chatId int64, page int, tasks string) error {
+	key := fmt.Sprintf("list:%d:%d", int(chatId), page)
+	return r.rdb.Set(ctx, key, tasks, tasksCacheExp).Err()
+}
+
+func (r *Repository) GetCachedUserTasks(ctx context.Context, chatId int64, page int) []byte {
+	key := fmt.Sprintf("list:%d:%d", int(chatId), page)
+	tasks, err := r.rdb.Get(ctx, key).Result()
+	if err != nil {
+		log.Printf("Error getting user tasks: %v", err)
+
+		return nil
+	}
+
+	return []byte(tasks)
 }

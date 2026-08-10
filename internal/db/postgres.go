@@ -82,16 +82,16 @@ func (r *Repository) Create(ctx context.Context, t task.Task) error {
 	return err
 }
 
-func (r *Repository) Delete(ctx context.Context, id, ownerId string) error {
+func (r *Repository) Delete(ctx context.Context, id, ownerId string) (int64, error) {
 	query := `DELETE
 		FROM
 			tasks
 		WHERE
 			id = $1
 			AND owner_id = $2`
-	_, err := r.db.Exec(ctx, query, id, ownerId)
+	tag, err := r.db.Exec(ctx, query, id, ownerId)
 
-	return err
+	return tag.RowsAffected(), err
 }
 
 func (r *Repository) Get(ctx context.Context, id, ownerId string) (*task.Task, error) {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -71,8 +72,15 @@ func (s *Service) DeleteTask(ctx context.Context, id, ownerId string) error {
 	if id == "" {
 		return errors.New("id can't be an empty string")
 	}
-
-	return s.repo.Delete(ctx, id, ownerId)
+	rowsAffected, err := s.repo.Delete(ctx, id, ownerId)
+	if err != nil {
+		return err
+	}
+	log.Printf("Delete query rows affected: %d", int(rowsAffected))
+	if rowsAffected == 0 {
+		return status.Error(codes.NotFound, "Task not found")
+	}
+	return nil
 }
 
 func (s *Service) GetTask(ctx context.Context, id, ownerId string) (*task.Task, error) {

@@ -174,7 +174,7 @@ func (r *Repository) List(ctx context.Context, ownerId string, after time.Time) 
 	return tList, nil
 }
 
-func (r *Repository) Update(ctx context.Context, id, ownerId, title, description string, status task.Status, updatedAt time.Time) error {
+func (r *Repository) Update(ctx context.Context, id, ownerId, title, description string, status task.Status, updatedAt time.Time) (int64, error) {
 	query := `UPDATE
 			tasks
 		SET
@@ -185,7 +185,7 @@ func (r *Repository) Update(ctx context.Context, id, ownerId, title, description
 		WHERE
 			id = $5
 			AND owner_id = $6`
-	_, err := r.db.Exec(ctx, query, status, title, description, updatedAt, id, ownerId)
+	tag, err := r.db.Exec(ctx, query, status, title, description, updatedAt, id, ownerId)
 
-	return err
+	return tag.RowsAffected(), err
 }

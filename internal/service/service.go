@@ -121,7 +121,14 @@ func (s *Service) UpdateTask(ctx context.Context, id, ownerId, title, descriptio
 		description = t.Description
 	}
 
-	err = s.repo.Update(ctx, id, ownerId, title, description, statusT, time.Now())
+	if statusT != t.Status && statusT == task.StatusPending {
+		statusT = t.Status
+	}
+
+	rowsAffected, err := s.repo.Update(ctx, id, ownerId, title, description, statusT, time.Now())
+	if rowsAffected == 0 {
+		return task.Task{}, status.Error(codes.NotFound, "Task is not found")
+	}
 	if err != nil {
 		return task.Task{}, err
 	}

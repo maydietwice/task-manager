@@ -84,3 +84,26 @@ func (r *Repository) GetCachedUserTasks(ctx context.Context, chatId int64, page 
 
 	return []byte(tasks)
 }
+
+func (r *Repository) ClearCache(ctx context.Context, chatId int64) error {
+	pattern := fmt.Sprintf("list:%d:*", int(chatId))
+	var cursor uint64
+	for {
+		keys, nextCursor, err := r.rdb.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			return err
+		}
+
+		if len(keys) > 0 {
+			if _, err := r.rdb.Unlink(ctx, keys...).Result(); err != nil {
+				return err
+			}
+		}
+
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+	return nil
+}

@@ -89,14 +89,7 @@ go run ./cmd/bot
 ```  
 ### Bot commands
 
-**Required fields marked as (!req)**
-
-- `/start` - starts bot
-- `/create title(!req) | description` - creates new task
-- `/delete id(!req)` - deletes task by id
-- `/get id(!req)` - returns task by id
-- `/update id(!req) | status[0 - pending, 1 - running, 2 - done](!req) | title | description` - updates task information by id
-- `/list page(!req) | limit(!req)` - returns limited(max 10) amount of tasks, navigation through pages(page)
+**Bot navigation is button-based and intuitive, use /start to start bot**
 
 
 ## gRPC API ([Protocol Buffers](https://protobuf.dev/))
@@ -218,8 +211,7 @@ Tasks are sorted by `created_at`
 **Request**
 ```json
 {
-    "page":"int",
-    "limit":"int"
+    "after":"google.protobuf.Timestamp"
 }
 ```
 

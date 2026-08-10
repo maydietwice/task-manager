@@ -23,12 +23,10 @@ Create .env configuration (see `env.example`):
 | POSTGRES_USER | Database user | user |
 | POSTGRES_PASSWORD | Database password | password |
 | JWT_SECRET_KEY | JWT secret key | banana |
-| DB_MAX_OPEN_CONNS | Maximum number of simultaneous database connections | 15 |
-| DB_MAX_IDLE_CONNS | Maximum number of idle connections in pool | 5 |
-| DB_CONN_MAX_IDLE_TIME | Maximum time for keeping alive and idle connection | 15m |
-| DB_CONN_MAX_LIFETIME | Maximum time for keeping alive an active connection | 1h |
 | TELEGRAM_BOT_TOKEN | @BotFather telegram bot token | telegram-bot-token |
 | GRPC_SERVER_ADDRESS | Address for your client to send requests | app:50051
+| RDB_ADDR | Redis DB address | redis:6379 |
+| RDB_PWD  | Redis DB password | banana 
 
 ## Running options
 

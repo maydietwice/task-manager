@@ -5,9 +5,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/maydietwice/task-manager/internal/db"
@@ -25,32 +23,8 @@ func init() {
 }
 
 func main() {
-	maxOpenConns, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
-	if err != nil {
-		log.Fatalf("Convertion error: %v\n", err)
-	}
-
-	maxIdleConns, err := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNS"))
-	if err != nil {
-		log.Fatalf("Convertion error: %v\n", err)
-	}
-
-	maxIdleTime, err := time.ParseDuration(os.Getenv("DB_CONN_MAX_IDLE_TIME"))
-	if err != nil {
-		log.Fatalf("Convertion error: %v\n", err)
-	}
-
-	maxLifetime, err := time.ParseDuration(os.Getenv("DB_CONN_MAX_LIFETIME"))
-	if err != nil {
-		log.Fatalf("Convertion error: %v\n", err)
-	}
-
 	config := db.DBConfig{
 		ConnectionString: os.Getenv("DB_CONNECTION_STRING"),
-		MaxOpenConns:     maxOpenConns,
-		MaxIdleConns:     maxIdleConns,
-		MaxIdleTime:      maxIdleTime,
-		MaxLifetime:      maxLifetime,
 	}
 	database, err := db.NewConnection(config)
 	if err != nil {

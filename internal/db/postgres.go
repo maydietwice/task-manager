@@ -23,10 +23,6 @@ type Repository struct {
 
 type DBConfig struct {
 	ConnectionString string
-	MaxOpenConns     int
-	MaxIdleConns     int
-	MaxIdleTime      time.Duration
-	MaxLifetime      time.Duration
 }
 
 func NewConnection(config DBConfig) (*pgxpool.Pool, error) {

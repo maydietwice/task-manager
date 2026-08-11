@@ -26,7 +26,8 @@ Create .env configuration (see `env.example`):
 | TELEGRAM_BOT_TOKEN | @BotFather telegram bot token | telegram-bot-token |
 | GRPC_SERVER_ADDRESS | Address for your client to send requests | app:50051
 | RDB_ADDR | Redis DB address | redis:6379 |
-| RDB_PWD  | Redis DB password | banana 
+| RDB_PWD  | Redis DB password | banana |
+| BOT_WORKER_POOL | count of workers(goroutines) handling bot updates | default:50
 
 ## Running options
 

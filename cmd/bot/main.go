@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -16,6 +17,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const (
+	defaultWorkerPool     = 50
+	bufToWorkerMultiplier = 5
+)
+
 func init() {
 	godotenv.Load()
 }
@@ -25,22 +31,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to connect with bot: %v\n", err)
 	}
-
 	tgBot.Debug = true
-
 	log.Printf("authorized on account %s\n", tgBot.Self.UserName)
 
 	repoRdb, err := rdb.NewConnection(os.Getenv("RDB_PWD"), os.Getenv("RDB_ADDR"))
 	if err != nil {
 		log.Fatalf("unable to create new redis connection: %v", err)
 	}
-
 	defer repoRdb.CloseConnection()
 
 	commands := tgbotapi.NewSetMyCommands(
 		tgbotapi.BotCommand{Command: "start", Description: "starts bot"},
 	)
-
 	_, err = tgBot.Request(commands)
 	if err != nil {
 		log.Fatalf("unable to request bot's commands: %v\n", err)
@@ -50,32 +52,38 @@ func main() {
 	if err != nil {
 		log.Fatalf("client connection failed: %v\n", err)
 	}
-
 	defer conn.Close()
-
 	client := proto.NewTaskServiceClient(conn)
-
 	handler := bothandler.NewHandler(client, tgBot, os.Getenv("JWT_SECRET_KEY"), repoRdb)
 
+	numWorkers, err := strconv.Atoi(os.Getenv("BOT_WORKER_POOL"))
+	if err != nil {
+		log.Printf("ERR | Can't convert .env worker pools count to int")
+		numWorkers = defaultWorkerPool
+	}
+	bufferSize := numWorkers * bufToWorkerMultiplier
+	updateChan := make(chan tgbotapi.Update, bufferSize)
+
+	log.Printf("Stating worker pool with %d workers (queue buffer: %d)\n", numWorkers, bufferSize)
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			for update := range updateChan {
+				handler.HandleUpdate(update)
+			}
+		}()
+	}
 	u := tgbotapi.NewUpdate(0)
-
 	u.Timeout = 60
-
 	updates := tgBot.GetUpdatesChan(u)
-
 	go func() {
 		for update := range updates {
-			go handler.HandleUpdate(update)
+			updateChan <- update
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
-
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
 	<-quit
-
 	tgBot.StopReceivingUpdates()
-
 	log.Print("Bot stopped gracefully")
 }

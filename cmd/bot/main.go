@@ -39,11 +39,6 @@ func main() {
 
 	commands := tgbotapi.NewSetMyCommands(
 		tgbotapi.BotCommand{Command: "start", Description: "starts bot"},
-		// tgbotapi.BotCommand{Command: "create", Description: "create new task, format: title | description"},
-		// tgbotapi.BotCommand{Command: "delete", Description: "delete task, format: id"},
-		// tgbotapi.BotCommand{Command: "get", Description: "get task, format: id"},
-		// tgbotapi.BotCommand{Command: "update", Description: "update task, format: id | status(0 - pending; 1 - running; 2 - done) | title | description (leave empty to not update)"},
-		// tgbotapi.BotCommand{Command: "list", Description: "list of your tasks, format: page | limit"},
 	)
 
 	_, err = tgBot.Request(commands)

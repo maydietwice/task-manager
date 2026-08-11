@@ -12,8 +12,8 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	clientinterceptor "github.com/maydietwice/task-manager/internal/bot/interceptor"
-	rdb "github.com/maydietwice/task-manager/internal/redis"
 	"github.com/maydietwice/task-manager/proto"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -32,14 +32,36 @@ var returnReplyKeyboard = tgbotapi.NewReplyKeyboard(
 	),
 )
 
+type client interface {
+	CreateTask(ctx context.Context, in *proto.CreateTaskRequest, opts ...grpc.CallOption) (*proto.CreateTaskResponse, error)
+	DeleteTask(ctx context.Context, in *proto.DeleteTaskRequest, opts ...grpc.CallOption) (*proto.DeleteTaskResponse, error)
+	GetTask(ctx context.Context, in *proto.GetTaskRequest, opts ...grpc.CallOption) (*proto.GetTaskResponse, error)
+	UpdateTask(ctx context.Context, in *proto.UpdateTaskRequest, opts ...grpc.CallOption) (*proto.UpdateTaskResponse, error)
+	ListTask(ctx context.Context, in *proto.ListTaskRequest, opts ...grpc.CallOption) (*proto.ListTaskResponse, error)
+}
+
+type tgbot interface {
+	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
+	Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, error)
+}
+
+type repo interface {
+	SetChatInfo(ctx context.Context, chatId int64, fields ...string) error
+	GetChatInfo(ctx context.Context, chatId int64) (map[string]string, error)
+	ClearState(ctx context.Context, chatId int64)
+	CacheUserTasks(ctx context.Context, chatId int64, page int, tasks string) error
+	GetCachedUserTasks(ctx context.Context, chatId int64, page int) []byte
+	ClearCache(ctx context.Context, chatId int64) error
+}
+
 type Handler struct {
-	client proto.TaskServiceClient
-	bot    *tgbotapi.BotAPI
-	repo   *rdb.Repository
+	client client
+	bot    tgbot
+	repo   repo
 	secret []byte
 }
 
-func NewHandler(client proto.TaskServiceClient, bot *tgbotapi.BotAPI, secret string, repo *rdb.Repository) *Handler {
+func NewHandler(client client, bot tgbot, secret string, repo repo) *Handler {
 	return &Handler{client: client, bot: bot, secret: []byte(secret), repo: repo}
 }
 

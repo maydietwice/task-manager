@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/maydietwice/task-manager/internal/service"
 	"github.com/maydietwice/task-manager/internal/task"
 	"github.com/maydietwice/task-manager/proto"
 	"google.golang.org/grpc/codes"
@@ -15,12 +14,21 @@ import (
 
 const queryTimeout = time.Second * 2
 
+type taskService interface {
+	Register() (string, error)
+	CreateTask(ctx context.Context, ownerId, title, description string) (*task.Task, error)
+	DeleteTask(ctx context.Context, id, ownerId string) error
+	GetTask(ctx context.Context, id, ownerId string) (*task.Task, error)
+	ListTask(ctx context.Context, ownerId string, after time.Time) ([]task.Task, error)
+	UpdateTask(ctx context.Context, id, ownerId, title, description string, statusT task.Status) (task.Task, error)
+}
+
 type Handler struct {
-	service *service.Service
+	service taskService
 	proto.UnimplementedTaskServiceServer
 }
 
-func NewHandler(s *service.Service) *Handler {
+func NewHandler(s taskService) *Handler {
 	return &Handler{service: s}
 }
 

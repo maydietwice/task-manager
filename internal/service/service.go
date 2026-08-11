@@ -8,18 +8,25 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/maydietwice/task-manager/internal/db"
 	"github.com/maydietwice/task-manager/internal/task"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+type repo interface {
+	Create(ctx context.Context, t task.Task) error
+	Delete(ctx context.Context, id, ownerId string) (int64, error)
+	Get(ctx context.Context, id, ownerId string) (*task.Task, error)
+	List(ctx context.Context, ownerId string, after time.Time) ([]task.Task, error)
+	Update(ctx context.Context, id, ownerId, title, description string, status task.Status, updatedAt time.Time) (int64, error)
+}
+
 type Service struct {
-	repo   *db.Repository
+	repo   repo
 	secret []byte
 }
 
-func NewService(repo *db.Repository, secret string) *Service {
+func NewService(repo repo, secret string) *Service {
 	return &Service{repo: repo, secret: []byte(secret)}
 }
 
